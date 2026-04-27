@@ -26,8 +26,6 @@ export function AuthProvider({ children }) {
     const safetyTimer = setTimeout(() => setLoading(false), 10000)
 
     const { data: { subscription } } = AuthClient.onAuthStateChange(async (event, s) => {
-      clearTimeout(safetyTimer)
-
       if (s && event === 'SIGNED_IN') {
         try {
           const ok = await AllowlistService.emailPermitido(s.user.email)
