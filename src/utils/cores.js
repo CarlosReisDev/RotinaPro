@@ -1,0 +1,8 @@
+export const COR_KCAL    = 'var(--color-accent)'
+export const COR_PROT    = '#3B82F6'
+export const COR_CARB    = '#F59E0B'
+export const COR_GORD    = '#A855F7'
+export const COR_HORA    = '#14B8A6'
+export const COR_AGUA    = '#38BDF8'
+export const COR_SUCESSO = '#22C55E'
+export const COR_ERRO    = '#EF4444'
