@@ -20,6 +20,15 @@ const AuthClient = {
     return data.session
   },
 
+  // Força tentativa de refresh usando refresh_token armazenado.
+  // Usado como fallback em mobile quando INITIAL_SESSION chega null
+  // por colisão de lock no navigator.locks (iOS Safari/PWA).
+  async refreshSession() {
+    const { data, error } = await ApiClient._supabaseInterno.auth.refreshSession()
+    if (error) throw error
+    return data.session
+  },
+
   onAuthStateChange(callback) {
     return ApiClient._supabaseInterno.auth.onAuthStateChange(callback)
   },

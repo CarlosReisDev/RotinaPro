@@ -21,11 +21,27 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    // Timeout de segurança: garante que loading nunca fica true para sempre
-    // se a troca PKCE ou qualquer rede travar em produção
-    const safetyTimer = setTimeout(() => setLoading(false), 10000)
+    // Timer longo: só para falha total de inicialização (rede caída, bug).
+    // NÃO dispara para renovação lenta de token — INITIAL_SESSION limpa ele.
+    const safetyTimer = setTimeout(() => { setSession(null); setLoading(false) }, 30000)
 
     const { data: { subscription } } = AuthClient.onAuthStateChange(async (event, s) => {
+      if (event === 'INITIAL_SESSION') {
+        clearTimeout(safetyTimer)
+
+        // Mobile fallback: se Supabase deu null mas localStorage tem refresh_token,
+        // navigator.locks falhou em coordenar o refresh. Tenta manualmente.
+        let sessao = s
+        if (!sessao) {
+          try { sessao = await AuthClient.refreshSession() } catch { /* sem sessão recuperável */ }
+        }
+
+        setSession(sessao ?? null)
+        if (sessao) await carregarPerfil(sessao.user.id)
+        else { setPerfil(null); setLoading(false) }
+        return
+      }
+
       if (s && event === 'SIGNED_IN') {
         try {
           const ok = await AllowlistService.emailPermitido(s.user.email)
@@ -33,7 +49,7 @@ export function AuthProvider({ children }) {
         } catch { /* falha de rede: continua; trigger no banco é a defesa primária */ }
       }
 
-      setSession(s)
+      setSession(s ?? null)
       if (s) await carregarPerfil(s.user.id)
       else { setPerfil(null); setLoading(false) }
     })
