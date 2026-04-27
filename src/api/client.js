@@ -1,8 +1,39 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Lock em memória substituindo o navigator.locks padrão do Supabase v2.
+// navigator.locks tem implementação instável no Firefox (sobretudo mobile):
+// o lock fica "preso" entre page loads e trava o refresh do token na atualização.
+// Como o app é single-tab por sessão, lock em memória é suficiente e seguro.
+const lockMap = new Map()
+async function memLock(name, _timeout, fn) {
+  while (lockMap.has(name)) {
+    try { await lockMap.get(name) } catch { /* continua mesmo se anterior rejeitou */ }
+  }
+  let liberar
+  const espera = new Promise(r => { liberar = r })
+  lockMap.set(name, espera)
+  try {
+    return await fn()
+  } finally {
+    lockMap.delete(name)
+    liberar()
+  }
+}
+
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    auth: {
+      lock: memLock,
+      // Refresh automático causa loading infinito em alguns mobile browsers
+      // (caminho interno colide ao recarregar). Com JWT de 24h no Supabase,
+      // refresh é desnecessário no uso normal — usuário relogga 1x/dia.
+      autoRefreshToken: false,
+      persistSession: true,
+      detectSessionFromUrl: true,
+    },
+  },
 )
 
 // Operadores suportados em filtros-array: ['eq'|'neq'|'is'|'gte'|'gt'|'lte'|'lt'|'in'|'or', coluna, valor]
