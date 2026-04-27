@@ -21,31 +21,29 @@ export function AuthProvider({ children }) {
   }, [])
 
   useEffect(() => {
-    AuthClient.getSession().then(async s => {
-      if (s) {
+    // Timeout de segurança: garante que loading nunca fica true para sempre
+    // se a troca PKCE ou qualquer rede travar em produção
+    const safetyTimer = setTimeout(() => setLoading(false), 10000)
+
+    const { data: { subscription } } = AuthClient.onAuthStateChange(async (event, s) => {
+      clearTimeout(safetyTimer)
+
+      if (s && event === 'SIGNED_IN') {
         try {
           const ok = await AllowlistService.emailPermitido(s.user.email)
           if (!ok) { await AuthClient.logout(); return }
         } catch { /* falha de rede: continua; trigger no banco é a defesa primária */ }
       }
-      setSession(s)
-      if (s) carregarPerfil(s.user.id)
-      else   setLoading(false)
-    }).catch(() => setLoading(false))
 
-    const { data: { subscription } } = AuthClient.onAuthStateChange(async (event, s) => {
-      if (s && event === 'SIGNED_IN') {
-        try {
-          const ok = await AllowlistService.emailPermitido(s.user.email)
-          if (!ok) { await AuthClient.logout(); return }
-        } catch { /* idem */ }
-      }
       setSession(s)
       if (s) await carregarPerfil(s.user.id)
       else { setPerfil(null); setLoading(false) }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(safetyTimer)
+      subscription.unsubscribe()
+    }
   }, [carregarPerfil])
 
   return (

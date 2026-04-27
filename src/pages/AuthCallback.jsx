@@ -11,27 +11,61 @@ export default function AuthCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    async function verificar() {
-      try {
-        const session = await AuthClient.getSession()
-        if (!session) { navigate('/login'); return }
+    let handled = false
 
+    async function processarSessao(session) {
+      try {
         const autorizado = await AllowlistService.emailPermitido(session.user.email)
         if (!autorizado) {
           await AuthClient.logout()
-          navigate('/login?erro=acesso_negado')
+          navigate('/login?erro=acesso_negado', { replace: true })
           return
         }
-
         const perfil = await PerfilService.obterPorId(session.user.id)
-        navigate(perfil ? '/' : '/onboarding')
+        navigate(perfil ? '/' : '/onboarding', { replace: true })
       } catch (error) {
-        logErro('AuthCallback.verificar', error)
+        logErro('AuthCallback.processarSessao', error)
         toast.error('Erro na autenticação. Tente novamente.')
-        navigate('/login')
+        navigate('/login', { replace: true })
       }
     }
-    verificar()
+
+    // Timeout: se a troca PKCE travar, redireciona para login após 15s
+    const timer = setTimeout(() => {
+      if (!handled) {
+        handled = true
+        subscription.unsubscribe()
+        navigate('/login', { replace: true })
+      }
+    }, 15000)
+
+    const { data: { subscription } } = AuthClient.onAuthStateChange(async (event, session) => {
+      if (handled) return
+
+      // SIGNED_IN: troca PKCE concluída com sucesso
+      // INITIAL_SESSION com session: já havia sessão válida (ex: aba reaberta)
+      if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && session)) {
+        handled = true
+        clearTimeout(timer)
+        subscription.unsubscribe()
+        await processarSessao(session)
+        return
+      }
+
+      // INITIAL_SESSION sem session e sem code na URL: não há sessão
+      if (event === 'INITIAL_SESSION' && !session && !window.location.search.includes('code=')) {
+        handled = true
+        clearTimeout(timer)
+        subscription.unsubscribe()
+        navigate('/login', { replace: true })
+      }
+    })
+
+    return () => {
+      handled = true
+      clearTimeout(timer)
+      subscription.unsubscribe()
+    }
   }, [navigate])
 
   return <LoadingScreen />
