@@ -28,16 +28,8 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = AuthClient.onAuthStateChange(async (event, s) => {
       if (event === 'INITIAL_SESSION') {
         clearTimeout(safetyTimer)
-
-        // Mobile fallback: se Supabase deu null mas localStorage tem refresh_token,
-        // navigator.locks falhou em coordenar o refresh. Tenta manualmente.
-        let sessao = s
-        if (!sessao) {
-          try { sessao = await AuthClient.refreshSession() } catch { /* sem sessão recuperável */ }
-        }
-
-        setSession(sessao ?? null)
-        if (sessao) await carregarPerfil(sessao.user.id)
+        setSession(s ?? null)
+        if (s) await carregarPerfil(s.user.id)
         else { setPerfil(null); setLoading(false) }
         return
       }

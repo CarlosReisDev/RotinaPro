@@ -7,12 +7,12 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    // SW auto-destruidor: instala apenas para desregistrar SWs antigos
+    // já presentes nos dispositivos dos usuários, depois se mata.
+    // Sem isso, quem instalou o PWA continua preso no SW antigo mesmo após deploy.
     VitePWA({
+      selfDestroying: true,
       registerType: 'autoUpdate',
-      workbox: {
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/auth/],
-      },
       manifest: {
         name: 'RotinaPro',
         short_name: 'RotinaPro',
