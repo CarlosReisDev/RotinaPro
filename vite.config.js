@@ -9,6 +9,10 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      workbox: {
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/auth/],
+      },
       manifest: {
         name: 'RotinaPro',
         short_name: 'RotinaPro',
