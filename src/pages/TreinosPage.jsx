@@ -413,7 +413,7 @@ export default function TreinosPage() {
     queryKey: ['agenda', userId],
     queryFn: () => AgendaService.listar(userId),
     enabled: !!userId,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 30,
   })
 
   const hoje = new Date().toISOString().split('T')[0]
@@ -430,8 +430,9 @@ export default function TreinosPage() {
     mutationFn: (payload) => AgendaService.salvarDia(payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agenda', userId] })
-      qc.invalidateQueries({ queryKey: ['treino-hoje', userId] })
+      qc.invalidateQueries({ queryKey: ['treino-hoje', userId, hoje] })
       setModalAgenda(null)
+      toast.success('Agendamento salvo.')
     },
     onError: (e) => toast.error(e.message),
   })
@@ -440,7 +441,7 @@ export default function TreinosPage() {
     mutationFn: (diaSemana) => AgendaService.removerDia(userId, diaSemana),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['agenda', userId] })
-      qc.invalidateQueries({ queryKey: ['treino-hoje', userId] })
+      qc.invalidateQueries({ queryKey: ['treino-hoje', userId, hoje] })
       setModalAgenda(null)
       toast.success('Agendamento removido.')
     },
@@ -833,14 +834,8 @@ export default function TreinosPage() {
           itemAtual={modalAgenda.item}
           templates={templates}
           salvando={agendando || limpando}
-          onSelecionarTemplate={(templateId) =>
-            agendarDia({ userId, diaSemana: modalAgenda.dia.valor, templateId })
-          }
-          onSelecionarAtividadeLivre={(atividadeLivre) =>
-            agendarDia({ userId, diaSemana: modalAgenda.dia.valor, atividadeLivre })
-          }
-          onMarcarDescanso={() =>
-            agendarDia({ userId, diaSemana: modalAgenda.dia.valor, descanso: true })
+          onSalvar={(payload) =>
+            agendarDia({ userId, diaSemana: modalAgenda.dia.valor, ...payload })
           }
           onLimpar={() => limparDia(modalAgenda.dia.valor)}
           onFechar={() => setModalAgenda(null)}

@@ -23,17 +23,7 @@ async function memLock(name, _timeout, fn) {
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      lock: memLock,
-      // Refresh automático causa loading infinito em alguns mobile browsers
-      // (caminho interno colide ao recarregar). Com JWT de 24h no Supabase,
-      // refresh é desnecessário no uso normal — usuário relogga 1x/dia.
-      autoRefreshToken: false,
-      persistSession: true,
-      detectSessionFromUrl: true,
-    },
-  },
+  { auth: { lock: memLock } },
 )
 
 // Operadores suportados em filtros-array: ['eq'|'neq'|'is'|'gte'|'gt'|'lte'|'lt'|'in'|'or', coluna, valor]

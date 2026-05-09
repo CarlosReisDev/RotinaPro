@@ -55,6 +55,7 @@ const TreinoService = {
       await ApiClient.delete('template_treino', id)
     } catch (error) {
       logErro('TreinoService.deletarTemplate', error)
+      if (error.code === '42501') throw new Error('Template protegido pelo sistema. Não pode ser excluído.')
       throw new Error('Erro ao deletar template.')
     }
   },

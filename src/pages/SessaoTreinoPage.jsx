@@ -104,7 +104,7 @@ function Header({ subtitulo, onVoltar }) {
 }
 
 // ─── FA3: escolha entre template ou atividade livre ─────────────
-function EscolhaTreino({ userId, onEscolherTemplate, onEscolherLivre }) {
+function EscolhaTreino({ userId, onEscolherTemplate, onEscolherLivre, sessaoEmAndamento, onDescartarSessao, descartando }) {
   const templatesQ = useQuery({
     queryKey: ['templates', userId],
     queryFn: () => TreinoService.listarTemplates(userId),
@@ -120,6 +120,32 @@ function EscolhaTreino({ userId, onEscolherTemplate, onEscolherLivre }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {sessaoEmAndamento && (
+        <div style={{
+          background: 'rgba(239,68,68,0.08)',
+          border: '1px solid rgba(239,68,68,0.35)',
+          borderRadius: 14, padding: '12px 14px',
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <p style={{ fontSize: 12, color: '#EF4444', fontWeight: 700 }}>SESSÃO EM ANDAMENTO</p>
+          <p style={{ fontSize: 13, color: 'var(--color-text-2)' }}>
+            Há uma sessão antiga não concluída ({sessaoEmAndamento.template_treino?.nome ?? sessaoEmAndamento.atividade_met?.nome ?? 'sem nome'}). Descarte-a para continuar.
+          </p>
+          <button
+            type="button"
+            onClick={onDescartarSessao}
+            disabled={descartando}
+            style={{
+              minHeight: 40, border: 'none', borderRadius: 10,
+              background: '#EF4444', color: '#fff',
+              fontFamily: 'var(--font-body)', fontSize: 13, fontWeight: 700,
+              cursor: descartando ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {descartando ? 'Descartando...' : 'Descartar sessão em andamento'}
+          </button>
+        </div>
+      )}
       <button
         type="button"
         onClick={onEscolherLivre}
@@ -218,13 +244,32 @@ export default function SessaoTreinoPage() {
   })
 
   const sessaoAtual = sessao.data
-  const ehMusculacao = !!sessaoAtual?.template_treino_id || !!templateIdState
-  const ehLivre = !!sessaoAtual?.atividade_met_id || !!agendaAtividade || iniciarLivreState
+  const intencaoExplicita = !!templateIdState || !!agendaAtividade || iniciarLivreState
+
+  const descartarSessao = useMutation({
+    mutationFn: (sessaoId) => SessaoService.descartarSessao(sessaoId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessao-em-andamento', userId] })
+      toast.success('Sessão descartada.')
+    },
+    onError: (error) => toast.error(error.message),
+  })
 
   // ─── Modo: MUSCULAÇÃO ──────────────────────────────────────
-  if (!sessao.isLoading && ehMusculacao) {
-    const tplId = sessaoAtual?.template_treino_id ?? templateIdState
-    const tplNome = sessaoAtual?.template_treino?.nome ?? templateNomeState ?? 'Template'
+  // Só entra aqui quando o usuário pediu um template OU quando há sessão de musculação
+  // em andamento e nenhuma intenção explícita conflitante.
+  const continuaMusculacao = !intencaoExplicita && !!sessaoAtual?.template_treino_id
+  const sessaoBateComTemplate = !!sessaoAtual?.template_treino_id
+    && !!templateIdState
+    && sessaoAtual.template_treino_id === templateIdState
+
+  if (!sessao.isLoading && (templateIdState || continuaMusculacao)) {
+    const tplId = templateIdState ?? sessaoAtual?.template_treino_id
+    const tplNome = (sessaoBateComTemplate || continuaMusculacao
+      ? sessaoAtual?.template_treino?.nome
+      : null) ?? templateNomeState ?? 'Template'
+    const sessaoParaRetomar = sessaoBateComTemplate || continuaMusculacao ? sessaoAtual : null
+
     return (
       <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', paddingBottom: NAV_H + 16 }}>
         <Header subtitulo={tplNome} onVoltar={() => navigate('/treinos')} />
@@ -233,7 +278,7 @@ export default function SessaoTreinoPage() {
             userId={userId}
             templateId={tplId}
             templateNome={tplNome}
-            sessaoEmAndamento={sessaoAtual?.template_treino_id ? sessaoAtual : null}
+            sessaoEmAndamento={sessaoParaRetomar}
             onConcluido={() => navigate('/treinos')}
           />
         </main>
@@ -242,29 +287,36 @@ export default function SessaoTreinoPage() {
     )
   }
 
-  // ─── Modo: ESCOLHA (FA3) ───────────────────────────────────
-  if (!sessao.isLoading && !ehLivre) {
-    return (
-      <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', paddingBottom: NAV_H + 16 }}>
-        <Header subtitulo="Escolha o tipo de treino" onVoltar={() => navigate('/treinos')} />
-        <main style={{ padding: '0 16px' }}>
-          <EscolhaTreino
-            userId={userId}
-            onEscolherTemplate={(id, nome) => navigate('/treinos/sessao', { state: { templateId: id, templateNome: nome }, replace: true })}
-            onEscolherLivre={() => navigate('/treinos/sessao', { state: { iniciarLivre: true }, replace: true })}
-          />
-        </main>
-        <BottomNav />
-      </div>
-    )
+  // ─── Modo: ATIVIDADE LIVRE ────────────────────────────────
+  // Entra quando o usuário pediu atividade livre (botão "outra atividade" ou agenda do dia)
+  // ou quando há sessão de atividade livre em andamento sem intenção contrária.
+  const continuaLivre = !intencaoExplicita && !!sessaoAtual?.atividade_met_id
+  if (!sessao.isLoading && (iniciarLivreState || agendaAtividade || continuaLivre)) {
+    const sessaoParaLivre = continuaLivre ? sessaoAtual : null
+    return <FormAtividadeLivre userId={userId} agendaAtividade={agendaAtividade} navigate={navigate} qc={qc} sessaoData={sessaoParaLivre} sessaoLoading={sessao.isLoading} />
   }
 
-  // ─── Modo: ATIVIDADE LIVRE (existente) ────────────────────
-  return <FormAtividadeLivre userId={userId} agendaAtividade={agendaAtividade} navigate={navigate} qc={qc} sessao={sessao} />
+  // ─── Modo: ESCOLHA (FA3) ───────────────────────────────────
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', paddingBottom: NAV_H + 16 }}>
+      <Header subtitulo="Escolha o tipo de treino" onVoltar={() => navigate('/treinos')} />
+      <main style={{ padding: '0 16px' }}>
+        <EscolhaTreino
+          userId={userId}
+          sessaoEmAndamento={sessaoAtual ?? null}
+          onDescartarSessao={() => sessaoAtual && descartarSessao.mutate(sessaoAtual.id)}
+          descartando={descartarSessao.isPending}
+          onEscolherTemplate={(id, nome) => navigate('/treinos/sessao', { state: { templateId: id, templateNome: nome }, replace: true })}
+          onEscolherLivre={() => navigate('/treinos/sessao', { state: { iniciarLivre: true }, replace: true })}
+        />
+      </main>
+      <BottomNav />
+    </div>
+  )
 }
 
 // ─── Form atividade livre (lógica preservada do fluxo anterior) ──
-function FormAtividadeLivre({ userId, agendaAtividade, navigate, qc, sessao }) {
+function FormAtividadeLivre({ userId, agendaAtividade, navigate, qc, sessaoData, sessaoLoading }) {
   const [atividadeId, setAtividadeId] = useState('')
   const [intensidade, setIntensidade] = useState('moderado')
   const [duracaoMin, setDuracaoMin] = useState('45')
@@ -314,8 +366,8 @@ function FormAtividadeLivre({ userId, agendaAtividade, navigate, qc, sessao }) {
     onError: (error) => toast.error(error.message),
   })
 
-  const carregando = atividades.isLoading || sessao.isLoading
-  const sessaoAtual = sessao.data
+  const carregando = atividades.isLoading || sessaoLoading
+  const sessaoAtual = sessaoData
   const atividadeSelecionada = (atividades.data ?? []).find(a => a.id === atividadeIdEfetivo) ?? null
   const corSelecionada = corAtividade(atividadeSelecionada?.nome)
   const duracaoNumerica = Number(duracaoMin)

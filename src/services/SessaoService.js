@@ -244,6 +244,16 @@ const SessaoService = {
     }
   },
 
+  async descartarSessao(sessaoId) {
+    try {
+      uuid(sessaoId, { campo: 'sessaoId' })
+      await ApiClient.delete('sessao_treino', sessaoId)
+    } catch (error) {
+      logErro('SessaoService.descartarSessao', error)
+      throw new Error('Erro ao descartar sessão.')
+    }
+  },
+
   async concluirSessao({ sessaoId, caloriasManual = null }) {
     try {
       uuid(sessaoId, { campo: 'sessaoId' })

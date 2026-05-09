@@ -24,22 +24,24 @@ function Botao({ onClick, disabled, ativo, children, cor = 'var(--color-accent)'
   )
 }
 
+function estadoInicial(itemAtual) {
+  if (itemAtual?.descanso) return { tipo: 'descanso' }
+  if (itemAtual?.template_treino?.id) return { tipo: 'template', templateId: itemAtual.template_treino.id }
+  const liv = itemAtual?.atividade_livre
+  if (liv?.tipo) return { tipo: 'livre', livreTipo: liv.tipo, livreNome: liv.nome ?? '' }
+  return { tipo: null }
+}
+
 export default function ModalAgendaDia({
   dia,
   itemAtual,
   templates = [],
-  onSelecionarTemplate,
-  onSelecionarAtividadeLivre,
-  onMarcarDescanso,
+  onSalvar,
   onLimpar,
   onFechar,
   salvando,
 }) {
-  const templateAtualId = itemAtual?.template_treino?.id
-  const descansoAtual   = !!itemAtual?.descanso
-  const atividadeLivreAtual = itemAtual?.atividade_livre ?? null
-  const [mostrarOutras, setMostrarOutras] = useState(atividadeLivreAtual?.tipo === 'outras')
-  const [nomeOutras, setNomeOutras] = useState(atividadeLivreAtual?.tipo === 'outras' ? (atividadeLivreAtual.nome ?? '') : '')
+  const [selecao, setSelecao] = useState(() => estadoInicial(itemAtual))
 
   function renderIconeAtividade(tipo) {
     if (tipo === 'natacao') return <Waves size={16} color="#0891B2" aria-hidden />
@@ -49,18 +51,40 @@ export default function ModalAgendaDia({
     return <Circle size={16} color="#0891B2" aria-hidden />
   }
 
-  function selecionarAtividade(tipo) {
-    if (tipo === 'outras') {
-      setMostrarOutras(true)
-      return
-    }
-    setMostrarOutras(false)
-    setNomeOutras('')
-    onSelecionarAtividadeLivre({ tipo })
+  function selecionarAtividade(valor) {
+    setSelecao({ tipo: 'livre', livreTipo: valor, livreNome: valor === 'outras' ? (selecao.livreNome ?? '') : '' })
   }
 
-  function salvarOutras() {
-    onSelecionarAtividadeLivre({ tipo: 'outras', nome: nomeOutras })
+  function selecionarTemplate(templateId) {
+    setSelecao({ tipo: 'template', templateId })
+  }
+
+  function selecionarDescanso() {
+    setSelecao({ tipo: 'descanso' })
+  }
+
+  const podeSalvar = (() => {
+    if (salvando) return false
+    if (selecao.tipo === 'descanso') return true
+    if (selecao.tipo === 'template') return !!selecao.templateId
+    if (selecao.tipo === 'livre') {
+      if (!selecao.livreTipo) return false
+      if (selecao.livreTipo === 'outras') return (selecao.livreNome ?? '').trim().length >= 2
+      return true
+    }
+    return false
+  })()
+
+  function handleSalvar() {
+    if (!podeSalvar) return
+    if (selecao.tipo === 'descanso') return onSalvar({ descanso: true })
+    if (selecao.tipo === 'template') return onSalvar({ templateId: selecao.templateId })
+    if (selecao.tipo === 'livre') {
+      const atividadeLivre = selecao.livreTipo === 'outras'
+        ? { tipo: 'outras', nome: selecao.livreNome.trim() }
+        : { tipo: selecao.livreTipo }
+      return onSalvar({ atividadeLivre })
+    }
   }
 
   return (
@@ -95,7 +119,7 @@ export default function ModalAgendaDia({
 
         <div style={{ overflowY: 'auto', flex: 1, padding: '0 16px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          <Botao onClick={onMarcarDescanso} disabled={salvando} ativo={descansoAtual} cor="#64748B">
+          <Botao onClick={selecionarDescanso} disabled={salvando} ativo={selecao.tipo === 'descanso'} cor="#64748B">
             <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(71,85,105,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <BedDouble size={18} color="var(--color-text-2)" aria-hidden />
             </div>
@@ -107,14 +131,14 @@ export default function ModalAgendaDia({
                 Sem treino programado
               </p>
             </div>
-            {descansoAtual && <Check size={18} color="#64748B" aria-hidden />}
+            {selecao.tipo === 'descanso' && <Check size={18} color="#64748B" aria-hidden />}
           </Botao>
 
           <p style={{ fontSize: 11, color: 'var(--color-text-3)', fontWeight: 600, marginTop: 4 }}>
             ATIVIDADE LIVRE
           </p>
           {ATIVIDADES_LIVRES.map(atividade => {
-            const ativo = atividadeLivreAtual?.tipo === atividade.valor || (atividade.valor === 'outras' && mostrarOutras)
+            const ativo = selecao.tipo === 'livre' && selecao.livreTipo === atividade.valor
             return (
               <Botao
                 key={atividade.valor}
@@ -139,7 +163,7 @@ export default function ModalAgendaDia({
             )
           })}
 
-          {mostrarOutras && (
+          {selecao.tipo === 'livre' && selecao.livreTipo === 'outras' && (
             <div style={{
               background: 'var(--color-bg)',
               border: '1px solid var(--color-border)',
@@ -155,8 +179,8 @@ export default function ModalAgendaDia({
               <SafeInput
                 id="atividade-livre-outras"
                 type="text"
-                value={nomeOutras}
-                onChange={e => setNomeOutras(e.target.value)}
+                value={selecao.livreNome ?? ''}
+                onChange={e => setSelecao(s => ({ ...s, livreNome: e.target.value }))}
                 maxLength={60}
                 placeholder="Ex.: Yoga, Pilates, Skate"
                 style={{
@@ -171,25 +195,6 @@ export default function ModalAgendaDia({
                 onFocus={e => { e.target.style.borderColor = '#0891B2' }}
                 onBlur={e => { e.target.style.borderColor = 'var(--color-border)' }}
               />
-              <button
-                type="button"
-                onClick={salvarOutras}
-                disabled={salvando || nomeOutras.trim().length < 2}
-                style={{
-                  background: nomeOutras.trim().length >= 2 ? '#0891B2' : 'var(--color-surface-2)',
-                  color: nomeOutras.trim().length >= 2 ? '#fff' : 'var(--color-text-3)',
-                  border: 'none',
-                  borderRadius: 10,
-                  padding: '12px 14px',
-                  cursor: salvando ? 'not-allowed' : 'pointer',
-                  fontFamily: 'var(--font-body)',
-                  fontSize: 14,
-                  fontWeight: 700,
-                  minHeight: 44,
-                }}
-              >
-                Salvar atividade livre
-              </button>
             </div>
           )}
 
@@ -200,9 +205,9 @@ export default function ModalAgendaDia({
               </p>
               {templates.map(t => {
                 const predefinido = !!t.predefinido
-                const ativo = t.id === templateAtualId
+                const ativo = selecao.tipo === 'template' && selecao.templateId === t.id
                 return (
-                  <Botao key={t.id} onClick={() => onSelecionarTemplate(t.id)} disabled={salvando} ativo={ativo}>
+                  <Botao key={t.id} onClick={() => selecionarTemplate(t.id)} disabled={salvando} ativo={ativo}>
                     <div style={{
                       width: 36, height: 36, borderRadius: 10,
                       background: predefinido ? 'rgba(71,85,105,0.2)' : 'rgba(249,115,22,0.12)',
@@ -241,6 +246,41 @@ export default function ModalAgendaDia({
               <Trash2 size={16} aria-hidden /> Limpar agendamento
             </button>
           )}
+        </div>
+
+        <div style={{
+          display: 'flex', gap: 10,
+          padding: '12px 16px',
+          borderTop: '1px solid var(--color-border)',
+          background: 'var(--color-surface)',
+        }}>
+          <button
+            type="button"
+            onClick={onFechar}
+            disabled={salvando}
+            style={{
+              flex: 1, minHeight: 48, border: 'none', borderRadius: 12,
+              background: 'var(--color-surface-2)', color: 'var(--color-text)',
+              fontFamily: 'var(--font-body)', fontSize: 15, fontWeight: 600,
+              cursor: salvando ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSalvar}
+            disabled={!podeSalvar}
+            style={{
+              flex: 1, minHeight: 48, border: 'none', borderRadius: 12,
+              background: podeSalvar ? 'var(--color-accent)' : 'var(--color-surface-2)',
+              color: podeSalvar ? '#fff' : 'var(--color-text-3)',
+              fontFamily: 'var(--font-heading)', fontSize: 15, fontWeight: 700,
+              cursor: podeSalvar ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {salvando ? 'Salvando…' : 'Salvar'}
+          </button>
         </div>
       </div>
     </>
