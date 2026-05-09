@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Activity, Bike, Dumbbell, Flame, Trash2, Waves, Clock3, ChevronRight, Replace, X } from 'lucide-react'
+import { useInfiniteQuery } from '@tanstack/react-query'
+import { ArrowLeft, Activity, Bike, Dumbbell, Waves, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import toast from 'react-hot-toast'
 import BottomNav from '../components/ui/BottomNav'
-import ModalConfirmacao from '../components/ui/ModalConfirmacao'
 import Skeleton from '../components/ui/Skeleton'
+import ModalDetalheSessao from '../components/treinos/ModalDetalheSessao'
 import { useAuth } from '../contexts/AuthContext'
 import SessaoService from '../services/SessaoService'
 
@@ -71,159 +70,6 @@ function CardSessao({ sessao, onAbrir }) {
       </div>
       <ChevronRight size={16} color="var(--color-text-3)" aria-hidden />
     </button>
-  )
-}
-
-function ModalDetalhe({ sessaoId, userId, onFechar }) {
-  const qc = useQueryClient()
-  const [confirmExcluir, setConfirmExcluir] = useState(false)
-
-  const { data: sessao, isLoading } = useQuery({
-    queryKey: ['sessao-detalhe', sessaoId],
-    queryFn: () => SessaoService.obterDetalheSessao(sessaoId),
-    enabled: !!sessaoId,
-    staleTime: 1000 * 60 * 5,
-  })
-
-  const excluir = useMutation({
-    mutationFn: () => SessaoService.descartarSessao(sessaoId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['historico-treinos', userId] })
-      qc.invalidateQueries({ queryKey: ['sessoes-hoje'] })
-      qc.invalidateQueries({ queryKey: ['primeira-sessao-hoje'] })
-      qc.invalidateQueries({ queryKey: ['resumo-diario'] })
-      toast.success('Sessão excluída.')
-      onFechar()
-    },
-    onError: (e) => toast.error(e.message),
-  })
-
-  return (
-    <>
-      <div onClick={onFechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 200 }} aria-hidden />
-      <div role="dialog" aria-modal="true" aria-label="Detalhes da sessão"
-        style={{
-          position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
-          width: '100%', maxWidth: 430, background: 'var(--color-surface)',
-          borderRadius: '20px 20px 0 0', maxHeight: '85dvh',
-          display: 'flex', flexDirection: 'column', zIndex: 201,
-          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: 'var(--color-border)' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 16px 12px' }}>
-          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>
-            {isLoading ? 'Carregando...' : nomeSessao(sessao ?? {})}
-          </h2>
-          <button type="button" onClick={onFechar} aria-label="Fechar"
-            style={{
-              width: 32, height: 32, borderRadius: 8, border: 'none',
-              background: 'var(--color-surface-2)', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text-2)',
-            }}>
-            <X size={16} aria-hidden />
-          </button>
-        </div>
-
-        <div style={{ overflowY: 'auto', padding: '0 16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {isLoading && (
-            <>
-              <Skeleton width="100%" height={70} radius={12} />
-              <Skeleton width="100%" height={120} radius={12} />
-            </>
-          )}
-
-          {!isLoading && sessao && (
-            <>
-              {/* Resumo */}
-              <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '12px 14px' }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, color: 'var(--color-text-2)' }}>
-                  <span>{formatarData(sessao.data)}</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    <Clock3 size={13} aria-hidden /> {sessao.duracao_minutos} min
-                  </span>
-                  {(sessao.calorias_gastas_manual ?? sessao.calorias_gastas_estimadas) && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <Flame size={13} aria-hidden /> {Math.round(Number(sessao.calorias_gastas_manual ?? sessao.calorias_gastas_estimadas))} kcal
-                    </span>
-                  )}
-                  {sessao.intensidade && <span>{LABEL_INTENSIDADE[sessao.intensidade]}</span>}
-                </div>
-                {sessao.observacao && (
-                  <p style={{ fontSize: 13, color: 'var(--color-text-2)', marginTop: 8, fontStyle: 'italic' }}>
-                    "{sessao.observacao}"
-                  </p>
-                )}
-              </div>
-
-              {/* Exercícios (musculação) */}
-              {sessao.tipo === 'musculacao' && sessao.exercicio_realizado?.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <p style={{ fontSize: 11, color: 'var(--color-text-3)', fontWeight: 600 }}>EXERCÍCIOS</p>
-                  {sessao.exercicio_realizado.map(ex => (
-                    <div key={ex.id} style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '10px 12px' }}>
-                      <p style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>
-                        {ex.nome}
-                        {ex.substituido && (
-                          <span style={{ fontSize: 10, color: 'var(--color-accent)', marginLeft: 6, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                            <Replace size={10} aria-hidden /> sub
-                          </span>
-                        )}
-                      </p>
-                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                        {ex.serie_realizada.map(s => (
-                          <span key={s.numero_serie} style={{
-                            fontSize: 12, padding: '3px 8px', borderRadius: 6,
-                            background: 'var(--color-surface-2)', color: 'var(--color-text-2)',
-                          }}>
-                            {s.numero_serie}: {s.carga_kg ? `${s.carga_kg}kg ×` : ''} {s.repeticoes}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {sessao.tipo === 'musculacao' && (!sessao.exercicio_realizado || sessao.exercicio_realizado.length === 0) && (
-                <p style={{ fontSize: 13, color: 'var(--color-text-3)', textAlign: 'center', padding: 20 }}>
-                  Sem exercícios registrados.
-                </p>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setConfirmExcluir(true)}
-                disabled={excluir.isPending}
-                style={{
-                  width: '100%', minHeight: 46, borderRadius: 12,
-                  border: '1.5px dashed rgba(239,68,68,0.5)', background: 'transparent',
-                  color: '#EF4444', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600,
-                  cursor: excluir.isPending ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  marginTop: 4,
-                }}
-              >
-                <Trash2 size={16} aria-hidden /> {excluir.isPending ? 'Excluindo…' : 'Excluir sessão'}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {confirmExcluir && (
-        <ModalConfirmacao
-          titulo="Excluir sessão?"
-          descricao="Esta sessão será removida permanentemente do histórico, junto com exercícios e séries registradas. Esta ação não pode ser desfeita."
-          confirmar="Excluir"
-          salvando={excluir.isPending}
-          onConfirmar={() => excluir.mutate()}
-          onFechar={() => setConfirmExcluir(false)}
-        />
-      )}
-    </>
   )
 }
 
@@ -299,7 +145,7 @@ export default function HistoricoTreinosPage() {
         )}
       </main>
 
-      {detalheId && <ModalDetalhe sessaoId={detalheId} userId={userId} onFechar={() => setDetalheId(null)} />}
+      {detalheId && <ModalDetalheSessao sessaoId={detalheId} userId={userId} onFechar={() => setDetalheId(null)} />}
 
       <BottomNav />
     </div>

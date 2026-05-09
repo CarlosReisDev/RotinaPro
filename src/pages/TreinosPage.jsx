@@ -9,6 +9,7 @@ import SessaoService from '../services/SessaoService'
 import ModalTemplate from '../components/treinos/ModalTemplate'
 import AgendaSemanal from '../components/treinos/AgendaSemanal'
 import ModalAgendaDia from '../components/treinos/ModalAgendaDia'
+import ModalDetalheSessao from '../components/treinos/ModalDetalheSessao'
 import BottomNav from '../components/ui/BottomNav'
 import Skeleton from '../components/ui/Skeleton'
 import SafeInput from '../components/ui/SafeInput'
@@ -59,16 +60,26 @@ function IconeAtividade({ nome, cor }) {
   return <Activity size={16} color={cor} aria-hidden />
 }
 
-function CardSessaoConcluida({ sessao }) {
+function CardSessaoConcluida({ sessao, onAbrir }) {
   const nome = sessao.atividade_met?.nome ?? sessao.template_treino?.nome ?? 'Atividade'
   const kcal = Math.round(Number(sessao.calorias_gastas_manual ?? sessao.calorias_gastas_estimadas ?? 0))
   const cor = corAtividade(nome)
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-      borderRadius: 14, padding: '12px 14px',
-    }}>
+    <button
+      type="button"
+      onClick={() => onAbrir?.(sessao.id)}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+        borderRadius: 14, padding: '12px 14px',
+        cursor: onAbrir ? 'pointer' : 'default', textAlign: 'left',
+        transition: 'transform var(--t-fast)',
+      }}
+      onMouseDown={e => { if (onAbrir) e.currentTarget.style.transform = 'scale(0.985)' }}
+      onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+      onTouchStart={e => { if (onAbrir) e.currentTarget.style.transform = 'scale(0.985)' }}
+      onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
+    >
       <div style={{
         width: 34, height: 34, borderRadius: 10,
         background: `${cor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
@@ -84,7 +95,7 @@ function CardSessaoConcluida({ sessao }) {
         </p>
       </div>
       <Check size={15} color="#22C55E" aria-hidden />
-    </div>
+    </button>
   )
 }
 
@@ -399,6 +410,7 @@ export default function TreinosPage() {
   const [modal, setModal] = useState(null) // null | { template, exercicios }
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [modalAgenda, setModalAgenda] = useState(null) // null | { dia, item }
+  const [detalheSessaoId, setDetalheSessaoId] = useState(null)
   const [configAberto, setConfigAberto] = useState(false)
   const [agendaAberta, setAgendaAberta] = useState(false)
 
@@ -613,7 +625,7 @@ export default function TreinosPage() {
         {sessoesDoDia.length > 0 && (
           <section aria-label="Realizadas hoje" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <p style={{ fontSize: 12, color: 'var(--color-text-3)', fontWeight: 600 }}>REALIZADAS HOJE</p>
-            {sessoesDoDia.map(s => <CardSessaoConcluida key={s.id} sessao={s} />)}
+            {sessoesDoDia.map(s => <CardSessaoConcluida key={s.id} sessao={s} onAbrir={setDetalheSessaoId} />)}
           </section>
         )}
 
@@ -824,6 +836,15 @@ export default function TreinosPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Modal de detalhe de sessão (cards "Realizadas hoje") */}
+      {detalheSessaoId && (
+        <ModalDetalheSessao
+          sessaoId={detalheSessaoId}
+          userId={userId}
+          onFechar={() => setDetalheSessaoId(null)}
+        />
       )}
 
       {/* Modal de agenda por dia */}

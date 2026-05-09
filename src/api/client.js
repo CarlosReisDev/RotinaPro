@@ -26,6 +26,18 @@ const supabase = createClient(
   { auth: { lock: memLock } },
 )
 
+// Rede de segurança: requisições que pendurem por mais de TIMEOUT_MS viram erro
+// tratado, evitando que React Query fique em loading infinito por token refresh
+// travado, Service Worker do PWA cacheado em estado ruim ou rede mobile oscilando.
+const TIMEOUT_MS = 20000
+function comTimeout(promise, ms = TIMEOUT_MS) {
+  let timer
+  const espera = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('Tempo de espera excedido. Verifique sua conexão e tente novamente.')), ms)
+  })
+  return Promise.race([promise, espera]).finally(() => clearTimeout(timer))
+}
+
 // Operadores suportados em filtros-array: ['eq'|'neq'|'is'|'gte'|'gt'|'lte'|'lt'|'in'|'or', coluna, valor]
 const OPERADORES = new Set(['eq', 'neq', 'is', 'gte', 'gt', 'lte', 'lt', 'in'])
 
@@ -60,27 +72,27 @@ const ApiClient = {
     } else if (opcoes.limit) {
       query = query.limit(opcoes.limit)
     }
-    const { data, error } = await query
+    const { data, error } = await comTimeout(query)
     if (error) throw error
     return data
   },
 
   async insert(tabela, dados) {
     const q = supabase.from(tabela).insert(dados).select()
-    const { data, error } = Array.isArray(dados) ? await q : await q.single()
+    const { data, error } = await comTimeout(Array.isArray(dados) ? q : q.single())
     if (error) throw error
     return data
   },
 
   async upsert(tabela, dados, opcoes = {}) {
     const q = supabase.from(tabela).upsert(dados, { onConflict: opcoes.onConflict }).select()
-    const { data, error } = Array.isArray(dados) ? await q : await q.single()
+    const { data, error } = await comTimeout(Array.isArray(dados) ? q : q.single())
     if (error) throw error
     return data
   },
 
   async update(tabela, id, dados) {
-    const { data, error } = await supabase.from(tabela).update(dados).eq('id', id).select().single()
+    const { data, error } = await comTimeout(supabase.from(tabela).update(dados).eq('id', id).select().single())
     if (error) throw error
     return data
   },
@@ -90,12 +102,12 @@ const ApiClient = {
     query = typeof filtros === 'object' && filtros !== null
       ? aplicarFiltros(query, filtros)
       : query.eq('id', filtros)
-    const { error } = await query
+    const { error } = await comTimeout(query)
     if (error) throw error
   },
 
   async rpc(funcao, params = {}) {
-    const { data, error } = await supabase.rpc(funcao, params)
+    const { data, error } = await comTimeout(supabase.rpc(funcao, params))
     if (error) throw error
     return data
   },
@@ -103,7 +115,8 @@ const ApiClient = {
   // Invoca Edge Function. JWT da sessão é injetado automaticamente.
   // Em erro HTTP, supabase-js retorna FunctionsHttpError com .context (Response).
   async invocar(funcao, body = {}) {
-    const { data, error } = await supabase.functions.invoke(funcao, { body })
+    // Edge Function (Gemini) pode demorar — uso timeout maior
+    const { data, error } = await comTimeout(supabase.functions.invoke(funcao, { body }), 45000)
     if (error) {
       // Tenta extrair body JSON da Response para preservar a mensagem real do servidor
       try {
