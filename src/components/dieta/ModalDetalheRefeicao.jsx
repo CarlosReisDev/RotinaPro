@@ -1,8 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery } from '@tanstack/react-query'
-import { X, Sparkles } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trash2, X, Sparkles } from 'lucide-react'
+import toast from 'react-hot-toast'
 import Skeleton from '../ui/Skeleton'
+import ModalConfirmacao from '../ui/ModalConfirmacao'
 import RefeicaoService from '../../services/RefeicaoService'
 import { COR_KCAL, COR_PROT, COR_CARB, COR_GORD, COR_HORA } from '../../utils/cores'
 
@@ -23,12 +25,26 @@ function rotuloOrigem(origem) {
   }
 }
 
-export default function ModalDetalheRefeicao({ refeicaoId, onFechar }) {
+export default function ModalDetalheRefeicao({ refeicaoId, userId, dataISO, onFechar }) {
+  const qc = useQueryClient()
+  const [confirmExcluir, setConfirmExcluir] = useState(false)
+
   const { data: refeicao, isLoading } = useQuery({
     queryKey: ['refeicao-detalhe', refeicaoId],
     queryFn: () => RefeicaoService.obterDetalhe(refeicaoId),
     enabled: !!refeicaoId,
     staleTime: 1000 * 60 * 5,
+  })
+
+  const excluir = useMutation({
+    mutationFn: () => RefeicaoService.deletar(refeicaoId),
+    onSuccess: () => {
+      if (userId && dataISO) qc.invalidateQueries({ queryKey: ['refeicoes-dia', userId, dataISO] })
+      qc.invalidateQueries({ queryKey: ['resumo-diario'] })
+      toast.success('Refeição removida.')
+      onFechar()
+    },
+    onError: (e) => toast.error(e.message),
   })
 
   // ESC fecha o modal
@@ -43,6 +59,7 @@ export default function ModalDetalheRefeicao({ refeicaoId, onFechar }) {
   const kcal = Math.round(Number(refeicao?.calorias_confirmadas ?? 0))
 
   return createPortal(
+    <>
     <div
       onClick={onFechar}
       style={{
@@ -154,11 +171,38 @@ export default function ModalDetalheRefeicao({ refeicaoId, onFechar }) {
                   Composição não disponível.
                 </p>
               )}
+
+              <button
+                type="button"
+                onClick={() => setConfirmExcluir(true)}
+                disabled={excluir.isPending}
+                style={{
+                  width: '100%', minHeight: 46, borderRadius: 12,
+                  border: '1.5px dashed rgba(239,68,68,0.5)', background: 'transparent',
+                  color: '#EF4444', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600,
+                  cursor: excluir.isPending ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                <Trash2 size={16} aria-hidden /> {excluir.isPending ? 'Excluindo…' : 'Excluir refeição'}
+              </button>
             </>
           )}
         </div>
       </div>
-    </div>,
+    </div>
+
+    {confirmExcluir && (
+      <ModalConfirmacao
+        titulo="Excluir refeição?"
+        descricao="Esta refeição será removida permanentemente, junto com sua composição. Esta ação não pode ser desfeita."
+        confirmar="Excluir"
+        salvando={excluir.isPending}
+        onConfirmar={() => excluir.mutate()}
+        onFechar={() => setConfirmExcluir(false)}
+      />
+    )}
+    </>,
     document.body
   )
 }

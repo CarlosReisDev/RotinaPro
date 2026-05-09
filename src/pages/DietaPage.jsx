@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Sparkles, Plus, Trash2, Apple, Beef, Wheat, Droplet, Check, X, Edit3,
+  Sparkles, Plus, Apple, Beef, Wheat, Droplet, Check, X, Edit3,
   ChevronRight, ChevronDown, ChevronLeft, Utensils, Flame, Settings,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -103,84 +103,57 @@ function BotaoAgua({ label, onClick, disabled, ativo }) {
   )
 }
 
-function CardRefeicao({ refeicao, onDeletar, onAbrir }) {
-  const [confirmando, setConfirmando] = useState(false)
+function CardRefeicao({ refeicao, onAbrir }) {
   const kcal       = Math.round(Number(refeicao.calorias_confirmadas ?? 0))
   const ehAlimento = refeicao.origem === 'alimento'
   const Icone      = ehAlimento ? Utensils : Apple
   return (
-    <div style={{
-      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-      borderRadius: 14, padding: '4px 4px 4px 14px',
-      display: 'flex', alignItems: 'center', gap: 10,
-    }}>
-      <button
-        type="button"
-        onClick={() => onAbrir(refeicao.id)}
-        aria-label="Ver detalhes"
-        style={{
-          flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12,
-          background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left',
-          padding: '8px 0', color: 'inherit',
-        }}
-      >
-        <div style={{
-          width: 40, height: 40, borderRadius: 12,
-          background: ehAlimento ? 'rgba(249,115,22,0.12)' : 'rgba(34,197,94,0.12)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Icone size={18} color={ehAlimento ? 'var(--color-accent)' : COR_SUCESSO} aria-hidden />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {refeicao.descricao_texto || 'Refeição'}
+    <button
+      type="button"
+      onClick={() => onAbrir(refeicao.id)}
+      aria-label="Ver detalhes"
+      style={{
+        width: '100%', background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)', borderRadius: 14,
+        padding: '12px 14px', cursor: 'pointer', textAlign: 'left',
+        display: 'flex', alignItems: 'center', gap: 12,
+        transition: 'transform var(--t-fast)',
+      }}
+      onMouseDown={e => e.currentTarget.style.transform = 'scale(0.985)'}
+      onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+      onTouchStart={e => e.currentTarget.style.transform = 'scale(0.985)'}
+      onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
+    >
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        background: ehAlimento ? 'rgba(249,115,22,0.12)' : 'rgba(34,197,94,0.12)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <Icone size={18} color={ehAlimento ? 'var(--color-accent)' : COR_SUCESSO} aria-hidden />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700, color: 'var(--color-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {refeicao.descricao_texto || 'Refeição'}
+        </p>
+        <p style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
+          <span style={{ color: COR_HORA, fontWeight: 600 }}>{formatarHora(refeicao.data_hora)}</span>
+          {' · '}
+          <span style={{ color: COR_KCAL, fontWeight: 700 }}>{kcal} kcal</span>
+          {' · '}
+          <span style={{ color: COR_PROT, fontWeight: 600 }}>P {Math.round(refeicao.proteina_g)}g</span>
+          {' · '}
+          <span style={{ color: COR_CARB, fontWeight: 600 }}>C {Math.round(refeicao.carboidrato_g)}g</span>
+          {' · '}
+          <span style={{ color: COR_GORD, fontWeight: 600 }}>G {Math.round(refeicao.gordura_g)}g</span>
+        </p>
+        {refeicao.classificacao_ia && (
+          <p style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2, fontStyle: 'italic' }}>
+            {refeicao.classificacao_ia}
           </p>
-          <p style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2 }}>
-            <span style={{ color: COR_HORA, fontWeight: 600 }}>{formatarHora(refeicao.data_hora)}</span>
-            {' · '}
-            <span style={{ color: COR_KCAL, fontWeight: 700 }}>{kcal} kcal</span>
-            {' · '}
-            <span style={{ color: COR_PROT, fontWeight: 600 }}>P {Math.round(refeicao.proteina_g)}g</span>
-            {' · '}
-            <span style={{ color: COR_CARB, fontWeight: 600 }}>C {Math.round(refeicao.carboidrato_g)}g</span>
-            {' · '}
-            <span style={{ color: COR_GORD, fontWeight: 600 }}>G {Math.round(refeicao.gordura_g)}g</span>
-          </p>
-          {refeicao.classificacao_ia && (
-            <p style={{ fontSize: 11, color: 'var(--color-text-3)', marginTop: 2, fontStyle: 'italic' }}>
-              {refeicao.classificacao_ia}
-            </p>
-          )}
-        </div>
-        <ChevronRight size={14} color="var(--color-text-3)" aria-hidden />
-      </button>
-
-      {confirmando ? (
-        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-          <button type="button" onClick={() => setConfirmando(false)}
-            style={{ height: 32, padding: '0 10px', borderRadius: 8, border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text-2)', fontSize: 12, cursor: 'pointer' }}>
-            Não
-          </button>
-          <button type="button" onClick={() => { setConfirmando(false); onDeletar(refeicao) }}
-            style={{ height: 32, padding: '0 10px', borderRadius: 8, border: 'none', background: COR_ERRO, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            Sim
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setConfirmando(true)}
-          aria-label="Deletar refeição"
-          style={{
-            width: 32, height: 32, borderRadius: 8, border: 'none',
-            background: 'transparent', color: 'var(--color-text-3)',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}
-        >
-          <Trash2 size={14} aria-hidden />
-        </button>
-      )}
-    </div>
+        )}
+      </div>
+      <ChevronRight size={14} color="var(--color-text-3)" aria-hidden />
+    </button>
   )
 }
 
@@ -352,12 +325,6 @@ export default function DietaPage() {
       classificacao, origem: deriveOrigem(descricao, foto),
     }),
     onSuccess: () => { invalidarDia(); toast.success('Refeição registrada!'); resetar() },
-    onError:   (e) => toast.error(e.message),
-  })
-
-  const deletar = useMutation({
-    mutationFn: (id) => RefeicaoService.deletar(id),
-    onSuccess: () => { invalidarDia(); toast.success('Refeição removida.') },
     onError:   (e) => toast.error(e.message),
   })
 
@@ -694,12 +661,7 @@ export default function DietaPage() {
             </p>
           )}
           {refeicoes.data?.map(r => (
-            <CardRefeicao
-              key={r.id}
-              refeicao={r}
-              onDeletar={(r) => deletar.mutate(r.id)}
-              onAbrir={setDetalheId}
-            />
+            <CardRefeicao key={r.id} refeicao={r} onAbrir={setDetalheId} />
           ))}
         </section>
 
@@ -805,7 +767,12 @@ export default function DietaPage() {
       </main>
 
       {detalheId && (
-        <ModalDetalheRefeicao refeicaoId={detalheId} onFechar={() => setDetalheId(null)} />
+        <ModalDetalheRefeicao
+          refeicaoId={detalheId}
+          userId={userId}
+          dataISO={dataISO}
+          onFechar={() => setDetalheId(null)}
+        />
       )}
 
       <BottomNav />
