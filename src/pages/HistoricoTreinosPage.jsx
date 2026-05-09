@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Activity, Bike, Dumbbell, Flame, Waves, Clock3, ChevronRight, Replace, X } from 'lucide-react'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, Activity, Bike, Dumbbell, Flame, Trash2, Waves, Clock3, ChevronRight, Replace, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import BottomNav from '../components/ui/BottomNav'
+import ModalConfirmacao from '../components/ui/ModalConfirmacao'
 import Skeleton from '../components/ui/Skeleton'
 import { useAuth } from '../contexts/AuthContext'
 import SessaoService from '../services/SessaoService'
@@ -72,12 +74,28 @@ function CardSessao({ sessao, onAbrir }) {
   )
 }
 
-function ModalDetalhe({ sessaoId, onFechar }) {
+function ModalDetalhe({ sessaoId, userId, onFechar }) {
+  const qc = useQueryClient()
+  const [confirmExcluir, setConfirmExcluir] = useState(false)
+
   const { data: sessao, isLoading } = useQuery({
     queryKey: ['sessao-detalhe', sessaoId],
     queryFn: () => SessaoService.obterDetalheSessao(sessaoId),
     enabled: !!sessaoId,
     staleTime: 1000 * 60 * 5,
+  })
+
+  const excluir = useMutation({
+    mutationFn: () => SessaoService.descartarSessao(sessaoId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['historico-treinos', userId] })
+      qc.invalidateQueries({ queryKey: ['sessoes-hoje'] })
+      qc.invalidateQueries({ queryKey: ['primeira-sessao-hoje'] })
+      qc.invalidateQueries({ queryKey: ['resumo-diario'] })
+      toast.success('Sessão excluída.')
+      onFechar()
+    },
+    onError: (e) => toast.error(e.message),
   })
 
   return (
@@ -174,10 +192,37 @@ function ModalDetalhe({ sessaoId, onFechar }) {
                   Sem exercícios registrados.
                 </p>
               )}
+
+              <button
+                type="button"
+                onClick={() => setConfirmExcluir(true)}
+                disabled={excluir.isPending}
+                style={{
+                  width: '100%', minHeight: 46, borderRadius: 12,
+                  border: '1.5px dashed rgba(239,68,68,0.5)', background: 'transparent',
+                  color: '#EF4444', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600,
+                  cursor: excluir.isPending ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  marginTop: 4,
+                }}
+              >
+                <Trash2 size={16} aria-hidden /> {excluir.isPending ? 'Excluindo…' : 'Excluir sessão'}
+              </button>
             </>
           )}
         </div>
       </div>
+
+      {confirmExcluir && (
+        <ModalConfirmacao
+          titulo="Excluir sessão?"
+          descricao="Esta sessão será removida permanentemente do histórico, junto com exercícios e séries registradas. Esta ação não pode ser desfeita."
+          confirmar="Excluir"
+          salvando={excluir.isPending}
+          onConfirmar={() => excluir.mutate()}
+          onFechar={() => setConfirmExcluir(false)}
+        />
+      )}
     </>
   )
 }
@@ -254,7 +299,7 @@ export default function HistoricoTreinosPage() {
         )}
       </main>
 
-      {detalheId && <ModalDetalhe sessaoId={detalheId} onFechar={() => setDetalheId(null)} />}
+      {detalheId && <ModalDetalhe sessaoId={detalheId} userId={userId} onFechar={() => setDetalheId(null)} />}
 
       <BottomNav />
     </div>

@@ -4,6 +4,7 @@ import { Check, ChevronDown, ChevronRight, Dumbbell, Flame, Replace, RotateCcw, 
 import toast from 'react-hot-toast'
 import SafeInput from '../ui/SafeInput'
 import Skeleton from '../ui/Skeleton'
+import ModalConfirmacao from '../ui/ModalConfirmacao'
 import TreinoService from '../../services/TreinoService'
 import SessaoService from '../../services/SessaoService'
 import { useSessaoAtiva } from '../../hooks/useSessaoAtiva'
@@ -66,6 +67,7 @@ export default function SessaoMusculacao({ userId, templateId, templateNome, ses
   const [resumoAberto, setResumoAberto] = useState(false)
   const [duracaoMinSnap, setDuracaoMinSnap] = useState(0)
   const [caloriasManual, setCaloriasManual] = useState('')
+  const [confirmCancelar, setConfirmCancelar] = useState(false)
 
   // Inicialização derivada — quando exerciciosQ.data chega, monta o estado uma única vez
   if (exerciciosQ.data && estadoInitId !== templateId) {
@@ -126,10 +128,22 @@ export default function SessaoMusculacao({ userId, templateId, templateNome, ses
   })
 
   function abrirResumo() {
-    const min = Math.max(1, Math.round(((Date.now() - (inicio ?? Date.now())) / 60000)))
+    const bruto = Math.round((Date.now() - (inicio ?? Date.now())) / 60000)
+    const min = Math.min(720, Math.max(1, bruto))
     setDuracaoMinSnap(min)
     setResumoAberto(true)
   }
+
+  const cancelarMut = useMutation({
+    mutationFn: () => SessaoService.descartarSessao(sessaoId),
+    onSuccess: () => {
+      cancelarDescanso()
+      qc.invalidateQueries({ queryKey: ['sessao-em-andamento', userId] })
+      toast.success('Sessão cancelada.')
+      onConcluido?.()
+    },
+    onError: (e) => toast.error(e.message),
+  })
 
   function atualizarSerie(exId, idx, patch) {
     setEstado(prev => ({
@@ -247,6 +261,7 @@ export default function SessaoMusculacao({ userId, templateId, templateNome, ses
         estado={estado}
         exercicios={exerciciosQ.data}
         duracaoMin={duracaoMinSnap}
+        setDuracaoMin={setDuracaoMinSnap}
         totaisResumo={totaisResumo}
         observacao={observacao}
         setObservacao={setObservacao}
@@ -303,15 +318,44 @@ export default function SessaoMusculacao({ userId, templateId, templateNome, ses
           fontFamily: 'var(--font-heading)', fontSize: 16, fontWeight: 700,
           cursor: totaisResumo.totalSeries === 0 ? 'not-allowed' : 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          marginBottom: descansoAtivo ? 70 : 0,
           transition: 'transform var(--t-fast)',
         }}
       >
         <Check size={18} aria-hidden /> Concluir sessão
       </button>
+
+      {sessaoId && (
+        <button
+          type="button"
+          onClick={() => setConfirmCancelar(true)}
+          disabled={cancelarMut.isPending}
+          style={{
+            width: '100%', minHeight: 46, borderRadius: 12,
+            border: '1.5px dashed rgba(239,68,68,0.5)', background: 'transparent',
+            color: '#EF4444', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600,
+            cursor: cancelarMut.isPending ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            marginBottom: descansoAtivo ? 70 : 0,
+          }}
+        >
+          <X size={16} aria-hidden /> {cancelarMut.isPending ? 'Cancelando…' : 'Cancelar sessão'}
+        </button>
+      )}
+
+      {confirmCancelar && (
+        <ModalConfirmacao
+          titulo="Cancelar sessão?"
+          descricao="A sessão atual e todas as séries registradas serão descartadas. Esta ação não pode ser desfeita."
+          confirmar="Cancelar sessão"
+          salvando={cancelarMut.isPending}
+          onConfirmar={() => { setConfirmCancelar(false); cancelarMut.mutate() }}
+          onFechar={() => setConfirmCancelar(false)}
+        />
+      )}
     </div>
   )
 }
+
 
 function CardExercicio({ exercicio, estado, sugestao, onAlternarAberto, onAtualizarSerie, onAlternarConcluida, onAlternarPulada, onAjustarDescanso, onAlternarSubstituir, onAtualizarNomeSub }) {
   const concluidas = estado.series.filter(s => s.concluida && !s.pulada).length
@@ -517,7 +561,7 @@ function CardExercicio({ exercicio, estado, sugestao, onAlternarAberto, onAtuali
   )
 }
 
-function ResumoSessao({ templateNome, estado, exercicios, duracaoMin, totaisResumo, observacao, setObservacao, caloriasManual, setCaloriasManual, salvando, onVoltar, onConfirmar }) {
+function ResumoSessao({ templateNome, estado, exercicios, duracaoMin, setDuracaoMin, totaisResumo, observacao, setObservacao, caloriasManual, setCaloriasManual, salvando, onVoltar, onConfirmar }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <header style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 16, padding: '14px 16px' }}>
@@ -525,8 +569,22 @@ function ResumoSessao({ templateNome, estado, exercicios, duracaoMin, totaisResu
         <p style={{ fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>
           {templateNome}
         </p>
-        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--color-text-2)' }}>
-          <span>{duracaoMin} min</span>
+        <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: 12, color: 'var(--color-text-2)', alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <SafeInput
+              type="number"
+              min={1}
+              max={720}
+              value={duracaoMin}
+              onChange={e => setDuracaoMin(Math.max(1, Math.min(720, Number(e.target.value) || 1)))}
+              style={{
+                width: 64, background: 'var(--color-bg)',
+                border: '1px solid var(--color-border)', borderRadius: 8,
+                padding: '4px 8px', fontSize: 13, color: 'var(--color-text)', outline: 'none',
+              }}
+            />
+            <span>min</span>
+          </label>
           <span>{totaisResumo.exDone} exercícios</span>
           <span>{totaisResumo.totalSeries} séries</span>
           <span>{Math.round(totaisResumo.volumeKg)} kg volume</span>

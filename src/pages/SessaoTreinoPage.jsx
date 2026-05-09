@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import BottomNav from '../components/ui/BottomNav'
 import Skeleton from '../components/ui/Skeleton'
 import SafeInput from '../components/ui/SafeInput'
+import ModalConfirmacao from '../components/ui/ModalConfirmacao'
 import SessaoMusculacao from '../components/treinos/SessaoMusculacao'
 import { useAuth } from '../contexts/AuthContext'
 import SessaoService from '../services/SessaoService'
@@ -321,6 +322,7 @@ function FormAtividadeLivre({ userId, agendaAtividade, navigate, qc, sessaoData,
   const [duracaoMin, setDuracaoMin] = useState('45')
   const [observacao, setObservacao] = useState('')
   const [caloriasManual, setCaloriasManual] = useState('')
+  const [confirmCancelar, setConfirmCancelar] = useState(false)
 
   const atividades = useQuery({
     queryKey: ['atividades-met-livres'],
@@ -360,6 +362,16 @@ function FormAtividadeLivre({ userId, agendaAtividade, navigate, qc, sessaoData,
       qc.invalidateQueries({ queryKey: ['sessao-em-andamento', userId] })
       qc.invalidateQueries({ queryKey: ['resumo-diario'] })
       toast.success('Sessão concluída!')
+      navigate('/treinos')
+    },
+    onError: (error) => toast.error(error.message),
+  })
+
+  const cancelar = useMutation({
+    mutationFn: (sessaoId) => SessaoService.descartarSessao(sessaoId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessao-em-andamento', userId] })
+      toast.success('Sessão cancelada.')
       navigate('/treinos')
     },
     onError: (error) => toast.error(error.message),
@@ -429,8 +441,33 @@ function FormAtividadeLivre({ userId, agendaAtividade, navigate, qc, sessaoData,
               >
                 <Check size={18} aria-hidden /> {concluir.isPending ? 'Concluindo...' : 'Concluir sessão'}
               </BotaoPrimario>
+              <button
+                type="button"
+                onClick={() => setConfirmCancelar(true)}
+                disabled={cancelar.isPending}
+                style={{
+                  width: '100%', minHeight: 46, borderRadius: 12,
+                  border: '1.5px dashed rgba(239,68,68,0.5)', background: 'transparent',
+                  color: '#EF4444', fontFamily: 'var(--font-body)', fontSize: 14, fontWeight: 600,
+                  cursor: cancelar.isPending ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                {cancelar.isPending ? 'Cancelando…' : 'Cancelar sessão'}
+              </button>
             </section>
           </>
+        )}
+
+        {confirmCancelar && (
+          <ModalConfirmacao
+            titulo="Cancelar sessão?"
+            descricao="A sessão atual será descartada. Esta ação não pode ser desfeita."
+            confirmar="Cancelar sessão"
+            salvando={cancelar.isPending}
+            onConfirmar={() => { setConfirmCancelar(false); cancelar.mutate(sessaoAtual.id) }}
+            onFechar={() => setConfirmCancelar(false)}
+          />
         )}
 
         {!carregando && !sessaoAtual && (
