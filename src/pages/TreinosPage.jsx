@@ -592,7 +592,7 @@ export default function TreinosPage() {
 
         <button
           type="button"
-          onClick={() => navigate('/treinos/sessao', { state: { iniciarLivre: true } })}
+          onClick={() => navigate('/treinos/sessao')}
           onMouseDown={e => e.currentTarget.style.transform = 'scale(0.985)'}
           onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
           onTouchStart={e => e.currentTarget.style.transform = 'scale(0.985)'}

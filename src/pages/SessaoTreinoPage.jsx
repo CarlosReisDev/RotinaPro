@@ -244,6 +244,8 @@ export default function SessaoTreinoPage() {
   })
 
   const sessaoAtual = sessao.data
+  const sessaoMusc = sessaoAtual?.template_treino_id ? sessaoAtual : null
+  const sessaoLivre = sessaoAtual?.atividade_met_id ? sessaoAtual : null
   const intencaoExplicita = !!templateIdState || !!agendaAtividade || iniciarLivreState
 
   const descartarSessao = useMutation({
@@ -256,19 +258,18 @@ export default function SessaoTreinoPage() {
   })
 
   // ─── Modo: MUSCULAÇÃO ──────────────────────────────────────
-  // Só entra aqui quando o usuário pediu um template OU quando há sessão de musculação
-  // em andamento e nenhuma intenção explícita conflitante.
-  const continuaMusculacao = !intencaoExplicita && !!sessaoAtual?.template_treino_id
-  const sessaoBateComTemplate = !!sessaoAtual?.template_treino_id
-    && !!templateIdState
-    && sessaoAtual.template_treino_id === templateIdState
+  // Entra quando o usuário pediu um template OU quando há sessão de musculação
+  // em andamento e nenhuma intenção conflitante. Sessão só é retomada se o
+  // template_treino_id bate com o templateIdState.
+  const continuaMusculacao = !intencaoExplicita && !!sessaoMusc
+  const sessaoBateComTemplate = !!sessaoMusc && !!templateIdState && sessaoMusc.template_treino_id === templateIdState
 
   if (!sessao.isLoading && (templateIdState || continuaMusculacao)) {
-    const tplId = templateIdState ?? sessaoAtual?.template_treino_id
+    const tplId = templateIdState ?? sessaoMusc?.template_treino_id
     const tplNome = (sessaoBateComTemplate || continuaMusculacao
-      ? sessaoAtual?.template_treino?.nome
+      ? sessaoMusc?.template_treino?.nome
       : null) ?? templateNomeState ?? 'Template'
-    const sessaoParaRetomar = sessaoBateComTemplate || continuaMusculacao ? sessaoAtual : null
+    const sessaoParaRetomar = sessaoBateComTemplate || continuaMusculacao ? sessaoMusc : null
 
     return (
       <div style={{ minHeight: '100dvh', background: 'var(--color-bg)', paddingBottom: NAV_H + 16 }}>
@@ -288,12 +289,10 @@ export default function SessaoTreinoPage() {
   }
 
   // ─── Modo: ATIVIDADE LIVRE ────────────────────────────────
-  // Entra quando o usuário pediu atividade livre (botão "outra atividade" ou agenda do dia)
-  // ou quando há sessão de atividade livre em andamento sem intenção contrária.
-  const continuaLivre = !intencaoExplicita && !!sessaoAtual?.atividade_met_id
-  if (!sessao.isLoading && (iniciarLivreState || agendaAtividade || continuaLivre)) {
-    const sessaoParaLivre = continuaLivre ? sessaoAtual : null
-    return <FormAtividadeLivre userId={userId} agendaAtividade={agendaAtividade} navigate={navigate} qc={qc} sessaoData={sessaoParaLivre} sessaoLoading={sessao.isLoading} />
+  // Entra quando o usuário pediu atividade livre, há atividade da agenda do dia,
+  // ou há sessão livre em andamento (mostra o resumo + botão concluir).
+  if (!sessao.isLoading && (iniciarLivreState || agendaAtividade || sessaoLivre)) {
+    return <FormAtividadeLivre userId={userId} agendaAtividade={agendaAtividade} navigate={navigate} qc={qc} sessaoData={sessaoLivre} sessaoLoading={sessao.isLoading} />
   }
 
   // ─── Modo: ESCOLHA (FA3) ───────────────────────────────────
