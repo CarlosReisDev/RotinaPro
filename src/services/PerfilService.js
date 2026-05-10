@@ -59,7 +59,12 @@ const PerfilService = {
       return usuario
     } catch (error) {
       logErro('PerfilService.salvarPerfil', error)
-      if (error.code === '23505') throw new Error('Perfil já cadastrado.')
+      if (error.code === '23505') throw new Error('Perfil já cadastrado para este e-mail. Faça logout e entre novamente.')
+      if (error.code === '42501') throw new Error('Sem permissão para criar perfil. Sua sessão pode ter expirado — tente sair e entrar de novo.')
+      if (error.code === '42703') throw new Error('Banco desatualizado. Rode as migrations pendentes.')
+      if (error.code === '23503') throw new Error('Referência inválida ao salvar perfil.')
+      if (error.code === '23502') throw new Error('Campo obrigatório faltando.')
+      if (error.message?.startsWith('Tempo de espera')) throw error
       if (error.message?.match(/^(Nome|Altura|Peso|Dias|Meta)/)) throw error
       throw new Error('Erro ao salvar perfil. Tente novamente.')
     }

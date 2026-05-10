@@ -206,6 +206,9 @@ export default function DietaPage() {
   const [mTreino, setMTreino]           = useState('')
   const [mDescanso, setMDescanso]       = useState('')
   const [mAgua, setMAgua]               = useState('')
+  const [mProtPct, setMProtPct]         = useState('30')
+  const [mCarbPct, setMCarbPct]         = useState('45')
+  const [mGordPct, setMGordPct]         = useState('25')
 
   // IA state
   const [descricao, setDescricao]     = useState('')
@@ -257,14 +260,30 @@ export default function DietaPage() {
 
   function toggleMeta() {
     if (!metaAberta && meta) {
-      setMKcal(String(Math.round(meta.meta_calorica_diaria ?? '')))
+      const kcal = Math.round(meta.meta_calorica_diaria ?? 0)
+      setMKcal(String(kcal))
       setMVariavel(!!meta.meta_variavel)
       setMTreino(meta.meta_calorica_treino    ? String(Math.round(meta.meta_calorica_treino))    : '')
       setMDescanso(meta.meta_calorica_descanso ? String(Math.round(meta.meta_calorica_descanso)) : '')
       setMAgua(String(meta?.meta_agua_ml ?? 2500))
+      if (kcal > 0) {
+        const prot = Math.round((Number(meta.meta_proteina_g    ?? 0) * 4 / kcal) * 100)
+        const carb = Math.round((Number(meta.meta_carboidrato_g ?? 0) * 4 / kcal) * 100)
+        const gord = Math.round((Number(meta.meta_gordura_g     ?? 0) * 9 / kcal) * 100)
+        setMProtPct(String(prot || 30))
+        setMCarbPct(String(carb || 45))
+        setMGordPct(String(gord || 25))
+      }
     }
     setMetaAberta(v => !v)
   }
+
+  const somaMacros = Number(mProtPct || 0) + Number(mCarbPct || 0) + Number(mGordPct || 0)
+  const macrosOk   = Math.abs(somaMacros - 100) <= 1
+  const kcalNum    = Number(mKcal) || 0
+  const gramasProt = Math.round((Number(mProtPct || 0) / 100) * kcalNum / 4)
+  const gramasCarb = Math.round((Number(mCarbPct || 0) / 100) * kcalNum / 4)
+  const gramasGord = Math.round((Number(mGordPct || 0) / 100) * kcalNum / 9)
 
   const salvarMeta = useMutation({
     mutationFn: () => DashboardService.atualizarMeta(userId, meta?.id, {
@@ -273,9 +292,9 @@ export default function DietaPage() {
       metaTreino:   mVariavel ? Number(mTreino)   : Number(mKcal),
       metaDescanso: mVariavel ? Number(mDescanso) : Number(mKcal),
       metaAgua:     Number(mAgua),
-      metaProteina: meta?.meta_proteina_g    ?? 0,
-      metaCarbo:    meta?.meta_carboidrato_g ?? 0,
-      metaGordura:  meta?.meta_gordura_g     ?? 0,
+      metaProteina: gramasProt,
+      metaCarbo:    gramasCarb,
+      metaGordura:  gramasGord,
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['configuracao-dieta', userId] })
@@ -730,6 +749,49 @@ export default function DietaPage() {
                 </div>
               )}
 
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                  <label style={{ fontSize: 12, color: 'var(--color-text-2)', fontWeight: 600 }}>
+                    Distribuição de macros (% das calorias)
+                  </label>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: macrosOk ? COR_SUCESSO : COR_ERRO }}>
+                    {somaMacros}%
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { lbl: 'Prot', cor: COR_PROT, val: mProtPct, set: setMProtPct, g: gramasProt },
+                    { lbl: 'Carb', cor: COR_CARB, val: mCarbPct, set: setMCarbPct, g: gramasCarb },
+                    { lbl: 'Gord', cor: COR_GORD, val: mGordPct, set: setMGordPct, g: gramasGord },
+                  ].map(({ lbl, cor, val, set, g }) => (
+                    <div key={lbl} style={{
+                      flex: 1, background: 'var(--color-bg)',
+                      border: `1.5px solid ${cor}33`, borderRadius: 12,
+                      padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: 10, color: cor, fontWeight: 700 }}>{lbl}</span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                        <SafeInput type="number" min={0} max={100} value={val}
+                          onChange={e => set(e.target.value)}
+                          onFocus={e => e.target.select()}
+                          style={{
+                            width: 44, background: 'transparent', border: 'none', outline: 'none',
+                            fontFamily: 'var(--font-heading)', fontSize: 18, fontWeight: 700,
+                            color: cor, textAlign: 'center', padding: 0,
+                          }} />
+                        <span style={{ fontSize: 11, color: 'var(--color-text-3)' }}>%</span>
+                      </div>
+                      <span style={{ fontSize: 10, color: 'var(--color-text-3)' }}>{g}g</span>
+                    </div>
+                  ))}
+                </div>
+                {!macrosOk && (
+                  <p style={{ fontSize: 11, color: COR_ERRO }}>
+                    A soma deve ser 100%.
+                  </p>
+                )}
+              </div>
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                   <label style={{ fontSize: 12, color: 'var(--color-text-2)', fontWeight: 600 }}>Meta de água (ml)</label>
@@ -754,8 +816,8 @@ export default function DietaPage() {
                   width: '100%', minHeight: 46, border: 'none', borderRadius: 12,
                   background: 'var(--color-accent)', color: '#fff',
                   fontFamily: 'var(--font-heading)', fontSize: 14, fontWeight: 700,
-                  cursor: (salvarMeta.isPending || !mKcal || !mAgua) ? 'not-allowed' : 'pointer',
-                  opacity: (salvarMeta.isPending || !mKcal || !mAgua) ? 0.6 : 1,
+                  cursor: (salvarMeta.isPending || !mKcal || !mAgua || !macrosOk) ? 'not-allowed' : 'pointer',
+                  opacity: (salvarMeta.isPending || !mKcal || !mAgua || !macrosOk) ? 0.6 : 1,
                 }}
               >
                 {salvarMeta.isPending ? 'Salvando...' : 'Salvar metas'}
