@@ -13,6 +13,7 @@ const HistoricoTreinosPage = lazy(() => import('./pages/HistoricoTreinosPage'))
 const DietaPage      = lazy(() => import('./pages/DietaPage'))
 const AlimentosPage  = lazy(() => import('./pages/AlimentosPage'))
 const FinancasPage   = lazy(() => import('./pages/FinancasPage'))
+const FaturasPage    = lazy(() => import('./pages/FaturasPage'))
 const PerfilPage     = lazy(() => import('./pages/PerfilPage'))
 
 function RotaProtegida({ children }) {
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/dieta"         element={<RotaProtegida><DietaPage /></RotaProtegida>} />
           <Route path="/dieta/alimentos" element={<RotaProtegida><AlimentosPage /></RotaProtegida>} />
           <Route path="/financas"      element={<RotaProtegida><FinancasPage /></RotaProtegida>} />
+          <Route path="/financas/faturas" element={<RotaProtegida><FaturasPage /></RotaProtegida>} />
           <Route path="/perfil"        element={<RotaProtegida><PerfilPage /></RotaProtegida>} />
           <Route path="*"              element={<Navigate to="/" replace />} />
         </Routes>
